@@ -1,5 +1,5 @@
 import os
-import pickle
+import joblib
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -8,6 +8,7 @@ from translatepy import Translator
 
 app = FastAPI()
 
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,80 +16,46 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+translator = Translator()
+
 class Message(BaseModel):
     text: str
 
-# Global objects
-translator = None
-hate_model = None
-vectorizer = None
-
+# Load models on startup
 @app.on_event("startup")
 async def startup_event():
-    global translator, hate_model, vectorizer
-    try:
-        profanity.load_censor_words()
-        translator = Translator()
-
-        # Load hate speech model
-        model_path = "hate_model.pkl"
-        vectorizer_path = "vectorizer.pkl"
-
-        if not os.path.exists(model_path) or not os.path.exists(vectorizer_path):
-            raise FileNotFoundError("Model or vectorizer file not found")
-
-        with open(model_path, "rb") as f:
-            hate_model = pickle.load(f)
-
-        with open(vectorizer_path, "rb") as f:
-            vectorizer = pickle.load(f)
-
-        print("Startup: models loaded successfully")
-
-    except Exception as e:
-        print(f"Startup error: {str(e)}")
-        raise RuntimeError("Startup failed") from e
+    global hate_model
+    profanity.load_censor_words()
+    hate_model = joblib.load("hate_model.joblib")
 
 @app.post("/moderate")
 async def moderate_message(message: Message):
-    if not translator or not hate_model or not vectorizer:
-        raise HTTPException(status_code=503, detail="Service unavailable - models not ready")
-
     try:
         original_text = message.text
-        translation = translator.translate(original_text, "en").result
-        lang = translator.language(original_text).result.alpha2
+        detection_result = translator.detect(original_text)
 
-        # Profanity check
-        is_profane = profanity.contains_profanity(translation)
-        censored = profanity.censor(translation)
+        if detection_result.language.lower() != "english":
+            translated = translator.translate(original_text, "en")
+            text_for_analysis = translated.result
+        else:
+            text_for_analysis = original_text
+            translated = None
 
-        # Hate speech detection
-        X = vectorizer.transform([translation])
-        prediction = hate_model.predict(X)[0]
-        prob = hate_model.predict_proba(X)[0].max()
+        prediction = hate_model.predict([text_for_analysis])[0]
+        score = max(hate_model.predict_proba([text_for_analysis])[0])
 
-        status = "inappropriate" if is_profane or prediction == 1 else "clean"
-
-        return {
-            "status": status,
-            "original_text": original_text,
-            "translated_text": translation,
-            "source_language": lang,
-            "censored_text": censored,
-            "hate_speech_detected": bool(prediction),
-            "profanity_detected": is_profane,
-            "confidence": round(prob, 3)
+        result = {
+            "status": "inappropriate" if prediction == 1 else "clean",
+            "score": round(score, 4),
+            "source_language": detection_result.language.lower(),
+            "translated_text": translated.result if translated else "",
         }
+        return result
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Moderation failed: {str(e)}")
 
 @app.get("/health")
 async def health_check():
-    return {
-        "status": "ready" if translator and hate_model and vectorizer else "loading",
-        "version": "profanity+hate"
-    }
-    
+    return {"status": "ready", "version": "hate-speech+profanity"}
     
