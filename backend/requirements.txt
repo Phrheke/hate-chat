@@ -1,7 +1,7 @@
-better_profanity==0.7.0
-translatepy==2.3
-transformers==4.41.2
-torch==2.2.2
 fastapi==0.109.1
 uvicorn==0.27.0
+translatepy==2.3
+better_profanity==0.7.0
+joblib==1.4.2
+scikit-learn==1.3.2
 python-multipart==0.0.6
