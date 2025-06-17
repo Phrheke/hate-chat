@@ -32,29 +32,33 @@ async def startup_event():
 async def moderate_message(message: Message):
     try:
         original_text = message.text
-        detection_result = translator.detect(original_text)
 
-        if detection_result.language.lower() != "english":
+        # Detect language using translator (correct usage)
+        detection_result = translator.detect(original_text)
+        source_lang = detection_result.language.lower()
+
+        if source_lang != "english":
             translated = translator.translate(original_text, "en")
             text_for_analysis = translated.result
         else:
             text_for_analysis = original_text
             translated = None
 
+        # Predict using your hate speech model
         prediction = hate_model.predict([text_for_analysis])[0]
         score = max(hate_model.predict_proba([text_for_analysis])[0])
 
         result = {
             "status": "inappropriate" if prediction == 1 else "clean",
             "score": round(score, 4),
-            "source_language": detection_result.language.lower(),
-            "translated_text": translated.result if translated else "",
+            "source_language": source_lang,
+            "translated_text": translated.result if translated else ""
         }
         return result
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Moderation failed: {str(e)}")
-
+        
 @app.get("/health")
 async def health_check():
     return {"status": "ready", "version": "hate-speech+profanity"}
