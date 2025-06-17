@@ -8,7 +8,7 @@ from translatepy import Translator
 
 app = FastAPI()
 
-# CORS
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -21,44 +21,48 @@ translator = Translator()
 class Message(BaseModel):
     text: str
 
-# Load models on startup
 @app.on_event("startup")
 async def startup_event():
     global hate_model
     profanity.load_censor_words()
-    hate_model = joblib.load("hate_speech_model_balanced.joblib")
+    hate_model = joblib.load("hate_model.joblib")
 
 @app.post("/moderate")
 async def moderate_message(message: Message):
     try:
         original_text = message.text
 
-        # Detect language using translator (correct usage)
+        # Detect and translate if necessary
         detection_result = translator.detect(original_text)
         source_lang = detection_result.language.lower()
 
         if source_lang != "english":
             translated = translator.translate(original_text, "en")
-            text_for_analysis = translated.result
+            translated_text = translated.result
         else:
-            text_for_analysis = original_text
+            translated_text = original_text
             translated = None
 
-        # Predict using your hate speech model
-        prediction = hate_model.predict([text_for_analysis])[0]
-        score = max(hate_model.predict_proba([text_for_analysis])[0])
+        # Hate speech prediction
+        prediction = hate_model.predict([translated_text])[0]
+        score = max(hate_model.predict_proba([translated_text])[0])
 
-        result = {
-            "status": "inappropriate" if prediction == 1 else "clean",
+        # Profanity check (on original text)
+        contains_profanity = profanity.contains_profanity(original_text)
+        censored_text = profanity.censor(original_text)
+
+        return {
+            "status": "inappropriate" if prediction == 1 or contains_profanity else "clean",
             "score": round(score, 4),
             "source_language": source_lang,
-            "translated_text": translated.result if translated else ""
+            "translated_text": translated.result if translated else "",
+            "censored_text": censored_text,
+            "contains_profanity": contains_profanity,
         }
-        return result
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Moderation failed: {str(e)}")
-        
+
 @app.get("/health")
 async def health_check():
     return {"status": "ready", "version": "hate-speech+profanity"}
