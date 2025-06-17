@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sendIcon = document.getElementById('send-icon');
     const loadingIcon = document.getElementById('loading-icon');
 
-    const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+ const API_URL = 'https://hate-chat-backend.onrender.com'; 
     let isServerReady = false;
 
     // Check server health on startup
