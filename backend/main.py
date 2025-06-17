@@ -26,7 +26,7 @@ class Message(BaseModel):
 async def startup_event():
     global hate_model
     profanity.load_censor_words()
-    hate_model = joblib.load("hate_model.joblib")
+    hate_model = joblib.load("hate_speech_model_balanced.joblib")
 
 @app.post("/moderate")
 async def moderate_message(message: Message):
