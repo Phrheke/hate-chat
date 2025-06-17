@@ -30,20 +30,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="text-red-600">${text}</div>
             `;
         } else {
-            const lang = result?.source_language ? result.source_language.toUpperCase() : 'N/A';
+            const lang = result?.source_language?.toUpperCase() || 'N/A';
             const translatedText = result?.translated_text || '';
             const score = result?.score ? (result.score * 100).toFixed(2) : '0.00';
 
             messageDiv.innerHTML = `
                 <div class="font-medium text-gray-700">Moderation Result</div>
-                ${result?.source_language && result.source_language !== 'en' ? `
-                    <div class="text-gray-600 mb-1">Detected: ${lang}</div>
-                    <div class="text-gray-600 mb-2">Translated: ${translatedText}</div>
-                ` : ''}
+                ${
+                    translatedText
+                        ? `<div class="text-gray-600 mb-1">Detected: ${lang}</div>
+                           <div class="text-gray-600 mb-2">Translated: ${translatedText}</div>`
+                        : `<div class="text-gray-600 mb-2">Language: ${lang}</div>`
+                }
                 <div class="flex items-center">
                     <span class="font-medium">Status:</span>
                     <span class="ml-2 px-2 py-1 rounded text-sm ${
-                        result.status === 'clean' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        result.status === 'clean'
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
                     }">
                         ${result.status === 'clean' ? '✅ Clean' : '🚫 Inappropriate'}
                     </span>
@@ -61,10 +65,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch(`${API_URL}/health`);
             const data = await response.json();
             isServerReady = data.status === 'ready';
-            
+
             if (!isServerReady) {
                 addMessage('Server is still loading models...', false, null, true);
-                setTimeout(checkServerHealth, 3000); // Retry in 3 seconds
+                setTimeout(checkServerHealth, 3000);
             }
         } catch (error) {
             addMessage('Cannot connect to server', false, null, true);
