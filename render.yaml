@@ -1,24 +1,15 @@
 services:
   - type: web
-    name: hate-speech-backend
+    name: hate-chat-backend
     env: python
-    pythonVersion: "3.10.12"  # Must match runtime.txt
-    buildCommand: |
-      python -m pip install --upgrade pip &&
-      python -m pip install --no-cache-dir -r requirements.txt
-    startCommand: |
-      python -c "
-      import os;
-      os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3';
-      from transformers.utils import logging;
-      logging.set_verbosity_error();
-      import uvicorn;
-      uvicorn.run('main:app', host='0.0.0.0', port=int(os.environ.get('PORT', 10000)), workers=1, limit_max_requests=100)
-      "
-    envVars:
-      - key: PYTORCH_CUDA_ALLOC_CONF
-        value: "max_split_size_mb:32"
+    buildCommand: ""
+    startCommand: uvicorn main:app --host 0.0.0.0 --port 10000
     plan: free
+    envVars:
+      - key: API_URL
+        value: https://hate-chat-backend.onrender.com
+
+    
     
   - type: static
     name: hate-chat-frontend
