@@ -31,7 +31,10 @@ async def moderate_message(message: Message):
         return {
             "status": "inappropriate" if is_profane else "clean",
             "censored_text": censored,
-            "original_text": text
+            "original_text": text,
+            "score": 1.0 if is_profane else 0.99,  # Dummy confidence score
+            "source_language": "en",               # Assume English for now
+            "translated_text": text                # No translation applied
         }
     except Exception as e:
         raise HTTPException(
