@@ -1,7 +1,7 @@
 services:
   - type: web
     name: hate-speech-backend
-    runtime: python
+    env: python
     pythonVersion: "3.10.12"  # Must match runtime.txt
     buildCommand: |
       python -m pip install --upgrade pip &&
@@ -25,3 +25,6 @@ services:
     buildCommand: ""
     staticPublishPath: frontend
     plan: free
+
+
+
