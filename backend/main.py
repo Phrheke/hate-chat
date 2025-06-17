@@ -23,6 +23,7 @@ class Message(BaseModel):
 
 translator = None
 HF_API_URL = "https://api-inference.huggingface.co/models/distilbert-base-uncased-finetuned-sst-2-english"
+
 HF_API_TOKEN = os.getenv("HF_API_TOKEN")
 
 if not HF_API_TOKEN:
