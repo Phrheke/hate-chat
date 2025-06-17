@@ -2,10 +2,12 @@ services:
   - type: web
     name: hate-speech-backend
     runtime: python
-    buildCommand: pip install -r requirements.txt
+    pythonVersion: "3.10"  # Specifically use Python 3.10
+    buildCommand: |
+      pip install --no-cache-dir -r requirements.txt
     startCommand: |
       python -c "
-      import os; 
+      import os;
       os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3';
       from transformers.utils import logging;
       logging.set_verbosity_error();
@@ -16,7 +18,7 @@ services:
       - key: PYTORCH_CUDA_ALLOC_CONF
         value: "max_split_size_mb:32"
     plan: free
-
+    
   - type: static
     name: hate-chat-frontend
     buildCommand: ""
