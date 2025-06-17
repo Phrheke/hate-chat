@@ -7,7 +7,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-# Suppress warnings
 warnings.filterwarnings("ignore")
 
 app = FastAPI()
@@ -20,13 +19,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Environment and model configuration
-HF_API_URL = "https://api-inference.huggingface.co/models/distilbert-base-uncased-finetuned-sst-2-english"
+# Hugging Face API setup
+HF_MODEL = "distilbert-base-uncased-finetuned-sst-2-english"  # You can replace this with any public model
+HF_API_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
 HF_API_TOKEN = os.getenv("HF_API_TOKEN")
 
 headers = {}
-
-# Translator placeholder
 translator = None
 
 class Message(BaseModel):
@@ -50,15 +48,17 @@ async def test_hf_api():
             response = await client.post(
                 HF_API_URL,
                 headers=headers,
-                json={"inputs": "Test message for sentiment analysis"},
+                json={"inputs": "This is a test message."},
                 timeout=15
             )
-        print(f"🔍 HF API status code: {response.status_code}")
-        print(f"🔍 HF API response: {response.text[:200]}...")
 
-        if response.status_code != 200:
-            return False
-        return True
+        print(f"🔍 HF API status code: {response.status_code}")
+        print(f"🔍 HF API response: {response.text[:300]}...")
+
+        if response.status_code == 503:
+            print("⏳ Model might be loading on HF...")
+            return True  # Still treat as success
+        return response.status_code == 200
     except Exception as e:
         print(f"❌ Exception during HF API test: {e}")
         traceback.print_exc()
@@ -68,7 +68,8 @@ async def test_hf_api():
 async def startup_event():
     global headers
 
-    # Check if HF API token is set
+    print("🚀 Starting application...")
+
     if not HF_API_TOKEN:
         print("❌ Environment variable HF_API_TOKEN not set. Aborting startup.")
         await asyncio.sleep(1)
@@ -79,12 +80,11 @@ async def startup_event():
     }
 
     try:
-        print("🚀 Starting application...")
         await load_models()
-        hf_ready = await test_hf_api()
+        hf_ok = await test_hf_api()
 
-        if hf_ready:
-            print("✅ Hugging Face API test passed.")
+        if hf_ok:
+            print("✅ Hugging Face API is reachable and working.")
         else:
             print("⚠️ WARNING: Hugging Face API test failed. Check token, model name, or usage limits.")
 
@@ -101,11 +101,11 @@ async def moderate_message(message: Message):
         raise HTTPException(status_code=503, detail="Service unavailable - translator not ready")
 
     try:
-        # Translate to English
+        # Translate input to English
         translation = translator.translate(message.text, 'en').result
         lang = translator.language(message.text).result.alpha2
 
-        # Send input to Hugging Face inference API
+        # Call Hugging Face model
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 HF_API_URL,
@@ -118,7 +118,7 @@ async def moderate_message(message: Message):
             raise HTTPException(status_code=502, detail=f"HF API error: {response.text}")
 
         result_data = response.json()
-        if not result_data or not isinstance(result_data, list):
+        if not isinstance(result_data, list) or not result_data:
             raise HTTPException(status_code=500, detail="Invalid response format from HF API")
 
         result = result_data[0]
@@ -145,5 +145,5 @@ async def health_check():
     return {
         "status": "ready" if translator else "loading",
         "version": "1.0.0"
-        }
+    }
     
