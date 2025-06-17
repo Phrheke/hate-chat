@@ -5,10 +5,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const sendIcon = document.getElementById('send-icon');
     const loadingIcon = document.getElementById('loading-icon');
 
- const API_URL = 'https://hate-chat-backend.onrender.com'; 
+    const API_URL = 'https://hate-chat-backend.onrender.com'; 
     let isServerReady = false;
 
-    // Check server health on startup
     checkServerHealth();
 
     function addMessage(text, isUser = true, result = null, isError = false) {
@@ -16,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
         messageDiv.className = `message p-4 rounded-lg ${
             isUser ? 'bg-indigo-50' : 'bg-gray-50'
         } ${
-            result?.status === 'clean' ? 'clean-message' : 
+            result?.status === 'clean' ? 'clean-message' :
             result?.status === 'inappropriate' ? 'inappropriate-message' : ''
         }`;
 
@@ -31,11 +30,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="text-red-600">${text}</div>
             `;
         } else {
+            const lang = result?.source_language ? result.source_language.toUpperCase() : 'N/A';
+            const translatedText = result?.translated_text || '';
+            const score = result?.score ? (result.score * 100).toFixed(2) : '0.00';
+
             messageDiv.innerHTML = `
                 <div class="font-medium text-gray-700">Moderation Result</div>
-                ${result.source_language !== 'en' ? `
-                    <div class="text-gray-600 mb-1">Detected: ${result.source_language.toUpperCase()}</div>
-                    <div class="text-gray-600 mb-2">Translated: ${result.translated_text}</div>
+                ${result?.source_language && result.source_language !== 'en' ? `
+                    <div class="text-gray-600 mb-1">Detected: ${lang}</div>
+                    <div class="text-gray-600 mb-2">Translated: ${translatedText}</div>
                 ` : ''}
                 <div class="flex items-center">
                     <span class="font-medium">Status:</span>
@@ -45,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${result.status === 'clean' ? '✅ Clean' : '🚫 Inappropriate'}
                     </span>
                 </div>
-                <div class="text-gray-600 mt-1">Confidence: ${(result.score * 100).toFixed(2)}%</div>
+                <div class="text-gray-600 mt-1">Confidence: ${score}%</div>
             `;
         }
 
@@ -61,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (!isServerReady) {
                 addMessage('Server is still loading models...', false, null, true);
-                setTimeout(checkServerHealth, 3000); // Check again in 3 seconds
+                setTimeout(checkServerHealth, 3000); // Retry in 3 seconds
             }
         } catch (error) {
             addMessage('Cannot connect to server', false, null, true);
@@ -73,7 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const text = messageInput.value.trim();
         if (!text || !isServerReady) return;
 
-        // UI Loading state
         sendIcon.classList.add('hidden');
         loadingIcon.classList.remove('hidden');
         sendButton.disabled = true;
@@ -88,17 +90,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ text })
             });
 
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.detail || 'Moderation failed');
+            const result = await response.json();
+
+            if (!response.ok || !result || !result.status) {
+                const errorMsg = result?.error || result?.detail || 'Unexpected server response';
+                throw new Error(errorMsg);
             }
 
-            const result = await response.json();
             addMessage('Moderation result', false, result);
         } catch (error) {
             addMessage(error.message, false, null, true);
         } finally {
-            // Reset UI
             sendIcon.classList.remove('hidden');
             loadingIcon.classList.add('hidden');
             sendButton.disabled = false;
@@ -108,12 +110,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Event listeners
     sendButton.addEventListener('click', sendMessage);
     messageInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') sendMessage();
     });
 
-    // Initial focus
     messageInput.focus();
 });
