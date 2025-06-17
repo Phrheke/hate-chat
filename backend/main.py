@@ -1,127 +1,76 @@
 import os
-import httpx
-import asyncio
-import warnings
-import traceback
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import warnings
+import asyncio
 
+# Suppress warnings
 warnings.filterwarnings("ignore")
 
 app = FastAPI()
 
-# CORS settings
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # For production change to your frontend URL
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Hugging Face API setup
-HF_MODEL = "distilbert-base-uncased-finetuned-sst-2-english"  # You can replace this with any public model
-HF_API_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
-HF_API_TOKEN = os.getenv("HF_API_TOKEN")
-
-headers = {}
-translator = None
-
 class Message(BaseModel):
     text: str
 
+# Global model variables
+translator = None
+classifier = None
+
 async def load_models():
-    global translator
+    global translator, classifier
     try:
         from translatepy import Translator
-        print("🔄 Initializing translator...")
+        from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
+
+        print("Loading translation model...")
         translator = Translator()
-        print("✅ Translator initialized.")
+
+        print("Loading moderation model...")
+        tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
+        model = AutoModelForSequenceClassification.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
+
+        classifier = pipeline(
+            "text-classification",
+            model=model,
+            tokenizer=tokenizer,
+            device=-1  # Ensures CPU use
+        )
+
+        print("Models loaded successfully")
     except Exception as e:
-        print(f"❌ Error loading translator: {str(e)}")
+        print(f"Error loading models: {str(e)}")
         raise
-
-async def test_hf_api():
-    print("🔌 Testing Hugging Face API connectivity...")
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                HF_API_URL,
-                headers=headers,
-                json={"inputs": "This is a test message."},
-                timeout=15
-            )
-
-        print(f"🔍 HF API status code: {response.status_code}")
-        print(f"🔍 HF API response: {response.text[:300]}...")
-
-        if response.status_code == 503:
-            print("⏳ Model might be loading on HF...")
-            return True  # Still treat as success
-        return response.status_code == 200
-    except Exception as e:
-        print(f"❌ Exception during HF API test: {e}")
-        traceback.print_exc()
-        return False
 
 @app.on_event("startup")
 async def startup_event():
-    global headers
-
-    print("🚀 Starting application...")
-
-    if not HF_API_TOKEN:
-        print("❌ Environment variable HF_API_TOKEN not set. Aborting startup.")
-        await asyncio.sleep(1)
-        os._exit(1)
-
-    headers = {
-        "Authorization": f"Bearer {HF_API_TOKEN}"
-    }
-
     try:
         await load_models()
-        hf_ok = await test_hf_api()
-
-        if hf_ok:
-            print("✅ Hugging Face API is reachable and working.")
-        else:
-            print("⚠️ WARNING: Hugging Face API test failed. Check token, model name, or usage limits.")
-
-        print("✅ Startup complete.")
-    except Exception:
-        print("🔥 Fatal error during startup:")
-        traceback.print_exc()
+    except Exception as e:
+        print(f"Fatal error during startup: {str(e)}")
         await asyncio.sleep(1)
         os._exit(1)
 
 @app.post("/moderate")
 async def moderate_message(message: Message):
-    if not translator:
-        raise HTTPException(status_code=503, detail="Service unavailable - translator not ready")
-
+    if not translator or not classifier:
+        raise HTTPException(status_code=503, detail="Service unavailable - models not loaded")
+    
     try:
-        # Translate input to English
+        # Translate to English
         translation = translator.translate(message.text, 'en').result
         lang = translator.language(message.text).result.alpha2
 
-        # Call Hugging Face model
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                HF_API_URL,
-                headers=headers,
-                json={"inputs": translation},
-                timeout=15
-            )
-
-        if response.status_code != 200:
-            raise HTTPException(status_code=502, detail=f"HF API error: {response.text}")
-
-        result_data = response.json()
-        if not isinstance(result_data, list) or not result_data:
-            raise HTTPException(status_code=500, detail="Invalid response format from HF API")
-
-        result = result_data[0]
+        # Moderate content
+        result = classifier(translation, truncation=True, max_length=512)[0]
 
         return {
             "status": "inappropriate" if result['label'] == "NEGATIVE" else "clean",
@@ -131,10 +80,7 @@ async def moderate_message(message: Message):
             "source_language": lang,
             "original_text": message.text
         }
-
     except Exception as e:
-        print(f"❌ Error during moderation: {e}")
-        traceback.print_exc()
         raise HTTPException(
             status_code=500,
             detail=f"Moderation failed: {str(e)}"
@@ -143,7 +89,7 @@ async def moderate_message(message: Message):
 @app.get("/health")
 async def health_check():
     return {
-        "status": "ready" if translator else "loading",
+        "status": "ready" if translator and classifier else "loading",
         "version": "1.0.0"
     }
     
