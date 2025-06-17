@@ -1,5 +1,4 @@
 protobuf==3.20.3
---index-url https://download.pytorch.org/whl/cpu
 torch==2.2.2
 transformers==4.41.2
 translatepy==2.3
@@ -8,3 +7,4 @@ uvicorn==0.27.0
 python-multipart==0.0.6
 numpy==1.26.4
 gunicorn==21.2.0
+--extra-index-url https://download.pytorch.org/whl/cpu
