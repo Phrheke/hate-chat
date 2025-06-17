@@ -1,5 +1,7 @@
+better_profanity==0.7.0
+translatepy==2.3
+transformers==4.41.2
+torch==2.2.2
 fastapi==0.109.1
 uvicorn==0.27.0
-better-profanity==0.7.0
 python-multipart==0.0.6
-gunicorn==21.2.0
