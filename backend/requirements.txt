@@ -8,5 +8,5 @@ translatepy==2.3
 fastapi==0.95.2
 uvicorn==0.22.0
 python-multipart==0.0.6
-numpy==1.21.6
+numpy
 gunicorn==20.1.0
