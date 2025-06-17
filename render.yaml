@@ -2,8 +2,9 @@ services:
   - type: web
     name: hate-speech-backend
     runtime: python
-    pythonVersion: "3.10"  # Specifically use Python 3.10
+    pythonVersion: "3.10.12"  # Must specify exact supported version
     buildCommand: |
+      pip install --no-cache-dir --upgrade pip &&
       pip install --no-cache-dir -r requirements.txt
     startCommand: |
       python -c "
