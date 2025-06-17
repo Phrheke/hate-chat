@@ -1,4 +1,4 @@
-protobuf
+protobuf==3.20.3
 --index-url https://download.pytorch.org/whl/cpu
 torch==2.2.2
 transformers==4.41.2
